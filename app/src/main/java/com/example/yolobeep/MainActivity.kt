@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.example.yolobeep
 
 import android.content.Context
@@ -27,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +41,7 @@ import androidx.lifecycle.LifecycleOwner
 import com.example.yolobeep.model.AStarPathfinder
 import com.example.yolobeep.model.GridMapLoader
 import com.example.yolobeep.ui.GridMapView
+import com.example.yolobeep.ui.LabeledMapView
 import com.example.yolobeep.ui.theme.YoloBeepTheme
 import org.tensorflow.lite.Interpreter
 import java.io.ByteArrayOutputStream
@@ -50,8 +53,67 @@ import java.nio.channels.FileChannel
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.AssistWalker
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.painterResource
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import com.example.yolobeep.ui.theme.MainBlue
+import com.example.yolobeep.ui.theme.LightBlue
+import com.example.yolobeep.ui.theme.AccentTeal
+import com.example.yolobeep.ui.theme.BgGray
+import com.example.yolobeep.ui.theme.DarkGray
+import com.example.yolobeep.ui.theme.CardWhite
+import com.example.yolobeep.ui.theme.CardWhiteTranslucent
 
 sealed class Screen {
     object Home : Screen()
@@ -74,16 +136,18 @@ class MainActivity : ComponentActivity() {
             YoloBeepTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     when (screen) {
-                        is Screen.Home -> HomeScreen(
+                        is Screen.Home -> VaviWelcomeScreen(
                             onDetection = { screen = Screen.Detection },
                             onMapping = { screen = Screen.Mapping }
                         )
                         is Screen.Detection -> CameraPreviewView(
-                            modifier = Modifier.padding(innerPadding)
+                            modifier = Modifier.padding(innerPadding),
+                            onBack = { screen = Screen.Home }
                         )
                         is Screen.Mapping -> GridNavigationScreen(
                             modifier = Modifier.padding(innerPadding),
-                            tts = tts
+                            tts = tts,
+                            onBack = { screen = Screen.Home }
                         )
                     }
                 }
@@ -98,221 +162,329 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HomeScreen(onDetection: () -> Unit, onMapping: () -> Unit) {
-    Column(
+fun VaviWelcomeScreen(
+    onDetection: () -> Unit,
+    onMapping: () -> Unit
+) {
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(MainBlue, LightBlue, BgGray)
+                )
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        Button(
-            onClick = onDetection,
+        Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
-        ) { Text("Real-Time Detection") }
-        Button(
-            onClick = onMapping,
+                .padding(24.dp)
+                .clip(RoundedCornerShape(32.dp)),
+            shape = RoundedCornerShape(32.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 18.dp),
+            colors = CardDefaults.cardColors(containerColor = CardWhiteTranslucent)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 40.dp, vertical = 48.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Logo
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(AccentTeal, MainBlue.copy(alpha = 0.7f)),
+                                radius = 120f
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Explore,
+                        contentDescription = "VAVI Logo",
+                        tint = CardWhite,
+                        modifier = Modifier.size(60.dp)
+                    )
+                }
+                Spacer(Modifier.height(36.dp))
+                // App name
+                Text(
+                    text = "VAVI",
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 38.sp
+                    ),
+                    color = MainBlue,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                Spacer(Modifier.height(18.dp))
+                // One-sentence summary
+                Text(
+                    text = "Empowering independence through AI-powered navigation for the visually impaired.",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = DarkGray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .align(Alignment.CenterHorizontally),
+                    lineHeight = 22.sp
+                )
+                Spacer(Modifier.height(24.dp))
+                // Two-line description
+                Text(
+                    text = "VAVI uses your phone's camera and smart indoor maps to help you safely explore and navigate any environment.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = DarkGray.copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .align(Alignment.CenterHorizontally),
+                    lineHeight = 20.sp
+                )
+                Spacer(Modifier.height(44.dp))
+                // Buttons
+                VaviActionButton(
+                    text = "Real-Time Detection",
+                    icon = Icons.Filled.Visibility,
+                    bgColor = AccentTeal,
+                    onClick = onDetection
+                )
+                Spacer(Modifier.height(32.dp))
+                VaviActionButton(
+                    text = "Indoor Mapping",
+                    icon = Icons.Filled.Map,
+                    bgColor = MainBlue,
+                    onClick = onMapping
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun VaviActionButton(
+    text: String,
+    icon: ImageVector,
+    bgColor: Color,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+                onClickLabel = text
+            ),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor)
+    ) {
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
-        ) { Text("Indoor Mapping") }
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = text,
+                tint = CardWhite,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = CardWhite,
+                fontSize = 20.sp,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
 lateinit var tflite: Interpreter
 
 @Composable
-fun GridNavigationScreen(modifier: Modifier = Modifier, tts: TextToSpeech?) {
+fun GridNavigationScreen(modifier: Modifier = Modifier, tts: TextToSpeech?, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
-    // Load grid from assets
+    val (rows, cols) = remember {
+        LabeledMapView(context).loadGridSizeFromJson(context)
+    }
     val grid = remember { GridMapLoader.loadGridMap(context) }
     var start by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var end by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var path by remember { mutableStateOf<List<Pair<Int, Int>>>(emptyList()) }
     var currentIdx by remember { mutableStateOf(0) }
     val current: Pair<Int, Int>? = if (path.isNotEmpty() && currentIdx in path.indices) path[currentIdx] else null
-    var rotation by remember { mutableStateOf(90f) }
     var setStartMode by remember { mutableStateOf(true) } // true: set start, false: set end
+    var isPathfinding by remember { mutableStateOf(false) }
+    var lastPathJob by remember { mutableStateOf<Job?>(null) }
+    var lastTapTime by remember { mutableStateOf(0L) }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Launch pathfinding in a coroutine when start and end are set
+    // Debounced pathfinding
     LaunchedEffect(start, end) {
         if (start != null && end != null && start != end) {
-            path = withContext(Dispatchers.Default) {
-                AStarPathfinder.findPath(grid, start!!, end!!)
+            isPathfinding = true
+            lastPathJob?.cancel()
+            val job = coroutineScope.launch(Dispatchers.Default) {
+                val result = AStarPathfinder.findPath(grid, start!!, end!!)
+                withContext(Dispatchers.Main) {
+                    path = result
+                    currentIdx = 0
+                    isPathfinding = false
+                    println("Path calculated: ${result.size} steps, from ${result.firstOrNull()} to ${result.lastOrNull()}")
+                }
             }
-            currentIdx = 0
+            lastPathJob = job
         }
     }
 
-    // Helper to speak direction
-    fun speakDirection(direction: String) {
-        tts?.speak(direction, TextToSpeech.QUEUE_FLUSH, null, null)
+    BackHandler(enabled = true) {
+        onBack?.invoke()
     }
 
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .background(BgGray),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Toggle button for Set Start / Set End
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Button(
-                onClick = { setStartMode = !setStartMode },
-                modifier = Modifier
-                    .semantics { contentDescription = if (setStartMode) "Switch to Set End" else "Switch to Set Start" }
-            ) {
-                Text(if (setStartMode) "Set Start" else "Set End")
-            }
-        }
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            AndroidView(
-                factory = { ctx ->
-                    GridMapView(ctx).apply {
-                        this.grid = grid
-                        this.onCellTapped = { row, col ->
-                            if (start == null) {
-                                start = row to col
-                                setStartMode = false // Switch to Set End
-                            } else if (end == null && (row to col) != start) {
-                                end = row to col
-                            } else if (start != null && end != null) {
-                                // Both set: move the closer one
-                                val distToStart = kotlin.math.abs(row - start!!.first) + kotlin.math.abs(col - start!!.second)
-                                val distToEnd = kotlin.math.abs(row - end!!.first) + kotlin.math.abs(col - end!!.second)
-                                if (distToStart <= distToEnd) {
-                                    start = row to col
-                                    if (end == start) end = null
-                                    setStartMode = false // Switch to Set End
-                                } else {
-                                    end = row to col
-                                    if (start == end) start = null
-                                    setStartMode = true // Switch to Set Start
-                                }
-                            }
-                            if (start != null && end != null && start != end) {
-                                // path will be computed by LaunchedEffect
-                            } else {
-                                path = emptyList()
-                                currentIdx = 0
-                            }
-                            this.start = start
-                            this.end = end
-                            this.path = path
-                            this.current = current
-                            this.rotationDegrees = rotation
-                        }
-                        this.start = start
-                        this.end = end
-                        this.path = path
-                        this.current = current
-                        this.rotationDegrees = rotation
-                    }
+        // Modern App Bar
+        CenterAlignedTopAppBar(
+            title = { Text("A Block 3rd Floor", style = MaterialTheme.typography.titleLarge, color = MainBlue) },
+            navigationIcon = {
+                IconButton(onClick = { onBack?.invoke() }) {
+                    Icon(Icons.Default.Home, contentDescription = "Home", tint = MainBlue)
+                }
+            },
+            colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
+                containerColor = CardWhite,
+                titleContentColor = MainBlue
+            )
+        )
+        Spacer(Modifier.height(8.dp))
+
+        // Confirmation dialog for reset
+        var showDialog by remember { mutableStateOf(false) }
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = { showDialog = false },
+                title = { Text("Reset Path", color = MainBlue) },
+                text = { Text("Are you sure you want to reset the start/end points and path?", color = DarkGray) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        start = null
+                        end = null
+                        path = emptyList()
+                        currentIdx = 0
+                        showDialog = false
+                    }) { Text("Yes", color = AccentTeal) }
                 },
-                update = { view ->
-                    view.grid = grid
-                    view.start = start
-                    view.end = end
-                    view.path = path
-                    view.current = current
-                    view.rotationDegrees = rotation
+                dismissButton = {
+                    TextButton(onClick = { showDialog = false }) { Text("No", color = MainBlue) }
                 },
-                modifier = Modifier.fillMaxSize()
+                containerColor = CardWhite
             )
         }
-        // D-pad navigation
-        val directions = listOf(
-            "up" to (-1 to 0),
-            "down" to (1 to 0),
-            "left" to (0 to -1),
-            "right" to (0 to 1)
-        )
-        val canMove = { dr: Int, dc: Int ->
-            val nextIdx = currentIdx + 1
-            if (path.isNotEmpty() && nextIdx in path.indices) {
-                val (curRow, curCol) = path[currentIdx]
-                val (nextRow, nextCol) = path[nextIdx]
-                (nextRow - curRow == dr) && (nextCol - curCol == dc)
-            } else false
+
+        // Map in a card with shadow and rounded corners
+        Card(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = CardWhite)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        LabeledMapView(ctx).apply {
+                            this.gridRows = rows
+                            this.gridCols = cols
+                            this.showGridOverlay = false // Disable overlay for normal use
+                            this.grid = grid
+                            this.startPosition = start
+                            this.endPosition = end
+                            this.onCellTapped = { row, col ->
+                                val now = System.currentTimeMillis()
+                                if (now - lastTapTime < 300) {
+                                    // debounce: ignore rapid taps
+                                } else {
+                                    lastTapTime = now
+                                    if (start == null) {
+                                        start = row to col
+                                        setStartMode = false // Switch to Set End
+                                    } else if (end == null && (row to col) != start) {
+                                        end = row to col
+                                    } else if (start != null && end != null) {
+                                        // If tap on end, move start; else, move end
+                                        if (row to col == end) {
+                                            start = row to col
+                                            if (end == start) end = null
+                                            setStartMode = false
+                                        } else {
+                                            end = row to col
+                                            if (start == end) start = null
+                                            setStartMode = true
+                                        }
+                                    }
+                                    // path will be computed by LaunchedEffect
+                                }
+                            }
+                        }
+                    },
+                    update = { view ->
+                        view.userPosition = current ?: Pair(rows / 2, cols / 2)
+                        view.path = path
+                        view.targetPosition = end
+                        view.startPosition = start
+                        view.endPosition = end
+                        view.showGridOverlay = false // Disable overlay for normal use
+                        view.grid = grid
+                        view.invalidate()
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
-        Column(
+
+        // Loading indicator
+        if (isPathfinding) {
+            Box(modifier = Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
+                Text("Calculating path...", style = MaterialTheme.typography.bodyMedium, color = MainBlue)
+            }
+        }
+
+        // Floating Action Button for Reset
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(bottom = 24.dp),
+            contentAlignment = Alignment.BottomEnd
         ) {
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
+            FloatingActionButton(
+                onClick = { showDialog = true },
+                containerColor = MainBlue,
+                shape = RoundedCornerShape(50)
             ) {
-                Spacer(modifier = Modifier.weight(1f))
-                Button(
-                    onClick = {
-                        if (canMove(-1, 0)) {
-                            currentIdx++
-                            speakDirection("Move up")
-                        }
-                    },
-                    enabled = canMove(-1, 0),
-                    modifier = Modifier
-                        .semantics { contentDescription = "Move Up" }
-                        .padding(8.dp)
-                ) { Text("↑") }
-                Spacer(modifier = Modifier.weight(1f))
-            }
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Button(
-                    onClick = {
-                        if (canMove(0, -1)) {
-                            currentIdx++
-                            speakDirection("Move left")
-                        }
-                    },
-                    enabled = canMove(0, -1),
-                    modifier = Modifier
-                        .semantics { contentDescription = "Move Left" }
-                        .padding(8.dp)
-                ) { Text("←") }
-                Spacer(modifier = Modifier.width(32.dp))
-                Button(
-                    onClick = {
-                        if (canMove(0, 1)) {
-                            currentIdx++
-                            speakDirection("Move right")
-                        }
-                    },
-                    enabled = canMove(0, 1),
-                    modifier = Modifier
-                        .semantics { contentDescription = "Move Right" }
-                        .padding(8.dp)
-                ) { Text("→") }
-            }
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Spacer(modifier = Modifier.weight(1f))
-                Button(
-                    onClick = {
-                        if (canMove(1, 0)) {
-                            currentIdx++
-                            speakDirection("Move down")
-                        }
-                    },
-                    enabled = canMove(1, 0),
-                    modifier = Modifier
-                        .semantics { contentDescription = "Move Down" }
-                        .padding(8.dp)
-                ) { Text("↓") }
-                Spacer(modifier = Modifier.weight(1f))
+                Icon(Icons.Default.Refresh, contentDescription = "Reset", tint = CardWhite)
             }
         }
     }
@@ -418,7 +590,10 @@ fun playStereoBeep(pan: Float) {
 }
 
 @Composable
-fun CameraPreviewView(modifier: Modifier = Modifier) {
+fun CameraPreviewView(modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
+    BackHandler(enabled = true) {
+        onBack?.invoke()
+    }
     val context = LocalContext.current
     val lifecycleOwner = context as LifecycleOwner
     val previewView = remember { PreviewView(context) }

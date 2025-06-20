@@ -53,7 +53,7 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite:2.13.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.3")
     implementation("org.tensorflow:tensorflow-lite-gpu:2.13.0")
-
+    implementation("androidx.compose.material:material-icons-extended:1.5.1")
     implementation("androidx.camera:camera-camera2:1.2.3")
     implementation("androidx.camera:camera-lifecycle:1.2.3")
     implementation("androidx.camera:camera-view:1.2.3")
