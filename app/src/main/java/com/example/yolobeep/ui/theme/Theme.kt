@@ -10,17 +10,37 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import com.example.yolobeep.ui.theme.*
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = MainBlue,
+    secondary = AccentTeal,
+    tertiary = LightBlue,
+    background = DarkGray,
+    surface = DarkGray,
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = Color.White,
+    onSurface = Color.White,
+    error = ErrorRed,
+    onError = Color.White
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = MainBlue,
+    secondary = AccentTeal,
+    tertiary = LightBlue,
+    background = BgGray,
+    surface = CardWhite,
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = DarkGray,
+    onSurface = DarkGray,
+    error = ErrorRed,
+    onError = Color.White
 
     /* Other default colors to override
     background = Color(0xFFFFFBFE),
